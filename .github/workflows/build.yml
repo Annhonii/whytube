@@ -21,8 +21,6 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
       # Wrapper jar repo me nahi hai, isliye Gradle direct install karte hain
       - uses: gradle/actions/setup-gradle@v4
         with:
