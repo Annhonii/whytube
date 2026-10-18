@@ -55,7 +55,7 @@ fun PlayerScreen(video: Video, onPlay: (Video) -> Unit) {
                     pf.createMediaSource(MediaItem.fromUri(d.audioUrl))))
             } else if (d.muxedUrl != null) {
                 player.setMediaSource(pf.createMediaSource(MediaItem.fromUri(d.muxedUrl)))
-            } else error("Stream URL nahi mila")
+            } else throw IllegalStateException("Stream URL nahi mila")
             player.prepare(); player.playWhenReady = true
             // history record: playback start ping
             InnerTube.ping(d.tracking.playbackUrl, cpn)
@@ -63,21 +63,31 @@ fun PlayerScreen(video: Video, onPlay: (Video) -> Unit) {
     }
 
     // Watchtime pings (har 30s + exit pe final) = algorithm ko batata hai ki tumne kitna dekha
-    suspend fun watchtime(final: Boolean) {
-        val d = data ?: return
-        val pos = player.currentPosition / 1000.0
-        val len = if (d.lengthSec > 0) d.lengthSec.toDouble() else player.duration.coerceAtLeast(0) / 1000.0
-        val st = "0.0"; val et = "%.3f".format(pos)
-        InnerTube.ping(d.tracking.watchtimeUrl, cpn,
-            "&cmt=$et&st=$st&et=$et&len=$len&state=${if (final) "paused" else "playing"}&volume=100" + if (final) "&final=1" else "")
+    fun sendWatchtime(d: PlayData, posSec: Double, durSec: Double, final: Boolean, sc: kotlinx.coroutines.CoroutineScope) {
+        val len = if (d.lengthSec > 0) d.lengthSec.toDouble() else durSec
+        val et = "%.3f".format(posSec)
+        sc.launch {
+            InnerTube.ping(d.tracking.watchtimeUrl, cpn,
+                "&cmt=$et&st=0.0&et=$et&len=$len&state=${if (final) "paused" else "playing"}&volume=100" + if (final) "&final=1" else "")
+        }
     }
     LaunchedEffect(data) {
-        while (data != null) { delay(30_000); if (player.isPlaying) watchtime(false) }
+        while (data != null) {
+            delay(30_000)
+            val d = data
+            if (d != null && player.isPlaying)
+                sendWatchtime(d, player.currentPosition / 1000.0, player.duration.coerceAtLeast(0L) / 1000.0, false, this)
+        }
     }
     DisposableEffect(video.id) {
         onDispose {
             val d = data
-            if (d != null) kotlinx.coroutines.GlobalScope.launch { watchtime(true) }
+            if (d != null) {
+                // release se PEHLE position le lo (main thread pe)
+                val pos = player.currentPosition / 1000.0
+                val dur = player.duration.coerceAtLeast(0L) / 1000.0
+                sendWatchtime(d, pos, dur, true, scope)
+            }
             player.release()
         }
     }

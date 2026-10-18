@@ -34,7 +34,7 @@ fun VideoRow(v: Video, onClick: () -> Unit) {
 @Composable
 fun HomeScreen(onPlay: (Video) -> Unit, onLogout: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var items by remember { mutableStateOf(listOf<Video>()) }
+    var videos by remember { mutableStateOf(listOf<Video>()) }
     var cont by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -46,14 +46,14 @@ fun HomeScreen(onPlay: (Video) -> Unit, onLogout: () -> Unit) {
         if (loading) return@launch
         loading = true; error = null
         runCatching { InnerTube.home(if (more) cont else null) }
-            .onSuccess { (v, c) -> items = if (more) (items + v).distinctBy { it.id } else v; cont = c }
+            .onSuccess { (v, c) -> videos = if (more) (videos + v).distinctBy { it.id } else v; cont = c }
             .onFailure { error = it.message }
         loading = false
     }
     fun doSearch() = scope.launch {
         if (query.isBlank()) { searching = false; loadHome(false); return@launch }
         loading = true; searching = true; error = null
-        runCatching { InnerTube.search(query) }.onSuccess { items = it; cont = null }.onFailure { error = it.message }
+        runCatching { InnerTube.search(query) }.onSuccess { videos = it; cont = null }.onFailure { error = it.message }
         loading = false
     }
 
@@ -68,7 +68,7 @@ fun HomeScreen(onPlay: (Video) -> Unit, onLogout: () -> Unit) {
             IconButton(onLogout) { Icon(Icons.Default.Logout, "Logout") }
         }
         error?.let { Text("Error: $it", Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error) }
-        if (loading && items.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
-        LazyColumn(state = state) { items(items, key = { it.id }) { VideoRow(it) { onPlay(it) } } }
+        if (loading && videos.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
+        LazyColumn(state = state) { items(videos, key = { it.id }) { VideoRow(it) { onPlay(it) } } }
     }
 }
